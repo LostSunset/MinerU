@@ -38,15 +38,13 @@ except ImportError as e:
 from magic_pdf.model.pek_sub_modules.layoutlmv3.model_init import Layoutlmv3_Predictor
 from magic_pdf.model.pek_sub_modules.post_process import latex_rm_whitespace
 from magic_pdf.model.pek_sub_modules.self_modify import ModifiedPaddleOCR
-# from magic_pdf.model.pek_sub_modules.structeqtable.StructTableModel import StructTableModel
+from magic_pdf.model.pek_sub_modules.structeqtable.StructTableModel import StructTableModel
 from magic_pdf.model.ppTableModel import ppTableModel
 
 
 def table_model_init(table_model_type, model_path, max_time, _device_='cpu'):
     if table_model_type == MODEL_NAME.STRUCT_EQTABLE:
-        # table_model = StructTableModel(model_path, max_time=max_time, device=_device_)
-        logger.error("StructEqTable is under upgrade, the current version does not support it.")
-        exit(1)
+        table_model = StructTableModel(model_path, max_time=max_time)
     elif table_model_type == MODEL_NAME.TABLE_MASTER:
         config = {
             "model_dir": model_path,
@@ -284,8 +282,6 @@ class CustomPEKModel:
             )
         # 初始化ocr
         if self.apply_ocr:
-
-            # self.ocr_model = ModifiedPaddleOCR(show_log=show_log, det_db_box_thresh=0.3)
             self.ocr_model = atom_model_manager.get_atom_model(
                 atom_model_name=AtomicModel.OCR,
                 ocr_show_log=show_log,
@@ -302,17 +298,6 @@ class CustomPEKModel:
                 table_max_time=self.table_max_time,
                 device=self.device
             )
-
-            home_directory = Path.home()
-            det_source = os.path.join(models_dir, table_model_dir, DETECT_MODEL_DIR)
-            rec_source = os.path.join(models_dir, table_model_dir, REC_MODEL_DIR)
-            det_dest_dir = os.path.join(home_directory, PP_DET_DIRECTORY)
-            rec_dest_dir = os.path.join(home_directory, PP_REC_DIRECTORY)
-
-            if not os.path.exists(det_dest_dir):
-                shutil.copytree(det_source, det_dest_dir)
-            if not os.path.exists(rec_dest_dir):
-                shutil.copytree(rec_source, rec_dest_dir)
 
         logger.info('DocAnalysis init done!')
 
@@ -393,7 +378,7 @@ class CustomPEKModel:
             elif int(res['category_id']) in [5]:
                 table_res_list.append(res)
 
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and self.device != 'cpu':
             properties = torch.cuda.get_device_properties(self.device)
             total_memory = properties.total_memory / (1024 ** 3)  # 将字节转换为 GB
             if total_memory <= 10:
@@ -463,7 +448,9 @@ class CustomPEKModel:
                 html_code = None
                 if self.table_model_name == MODEL_NAME.STRUCT_EQTABLE:
                     with torch.no_grad():
-                        latex_code = self.table_model.image2latex(new_image)[0]
+                        table_result = self.table_model.predict(new_image, "html")
+                        if len(table_result) > 0:
+                            html_code = table_result[0]
                 else:
                     html_code = self.table_model.img2html(new_image)
 
@@ -474,14 +461,17 @@ class CustomPEKModel:
                 # 判断是否返回正常
 
                 if latex_code:
-                    expected_ending = latex_code.strip().endswith('end{tabular}') or latex_code.strip().endswith(
-                        'end{table}')
+                    expected_ending = latex_code.strip().endswith('end{tabular}') or latex_code.strip().endswith('end{table}')
                     if expected_ending:
                         res["latex"] = latex_code
                     else:
                         logger.warning(f"table recognition processing fails, not found expected LaTeX table end")
                 elif html_code:
-                    res["html"] = html_code
+                    expected_ending = html_code.strip().endswith('</html>') or html_code.strip().endswith('</table>')
+                    if expected_ending:
+                        res["html"] = html_code
+                    else:
+                        logger.warning(f"table recognition processing fails, not found expected HTML table end")
                 else:
                     logger.warning(f"table recognition processing fails, not get latex or html return")
             logger.info(f"table time: {round(time.time() - table_start, 2)}")
