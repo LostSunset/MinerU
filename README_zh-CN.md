@@ -42,7 +42,7 @@
 </div>
 
 # 更新记录
-
+- 2024/11/15 0.9.3发布，为表格识别功能接入了[RapidTable](https://github.com/RapidAI/RapidTable),单表解析速度提升10倍以上，准确率更高，显存占用更低
 - 2024/11/06 0.9.2发布，为表格识别功能接入了[StructTable-InternVL2-1B](https://huggingface.co/U4R/StructTable-InternVL2-1B)模型
 - 2024/10/31 0.9.0发布，这是我们进行了大量代码重构的全新版本，解决了众多问题，提升了性能，降低了硬件需求，并提供了更丰富的易用性：
   - 重构排序模块代码，使用 [layoutreader](https://github.com/ppaanngggg/layoutreader) 进行阅读顺序排序，确保在各种排版下都能实现极高准确率
@@ -121,7 +121,7 @@ https://github.com/user-attachments/assets/4bea02c9-6d54-4cd6-97ed-dff14340982c
 - 保留原文档的结构，包括标题、段落、列表等
 - 提取图像、图片描述、表格、表格标题及脚注
 - 自动识别并转换文档中的公式为LaTeX格式
-- 自动识别并转换文档中的表格为LaTeX或HTML格式
+- 自动识别并转换文档中的表格为HTML格式
 - 自动检测扫描版PDF和乱码PDF，并启用OCR功能
 - OCR支持84种语言的检测与识别
 - 支持多种输出格式，如多模态与NLP的Markdown、按阅读顺序排序的JSON、含有丰富信息的中间格式等
@@ -186,17 +186,13 @@ https://github.com/user-attachments/assets/4bea02c9-6d54-4cd6-97ed-dff14340982c
     </tr>
     <tr>
         <td rowspan="2">GPU硬件支持列表</td>
-        <td colspan="2">最低要求 8G+显存</td>
-        <td colspan="2">3060ti/3070/4060<br>
-        8G显存可开启layout、公式识别和ocr加速</td>
+        <td colspan="2">显存8G以上</td>
+        <td colspan="2">
+        2080~2080Ti / 3060Ti~3090Ti / 4060~4090<br>
+        8G显存及以上可开启全部加速功能</td>
         <td rowspan="2">None</td>
     </tr>
-    <tr>
-        <td colspan="2">推荐配置 10G+显存</td>
-        <td colspan="2">3080/3080ti/3090/3090ti/4070/4070ti/4070tisuper/4080/4090<br>
-        10G显存及以上可以同时开启layout、公式识别和ocr加速和表格识别加速<br>
-        </td>
-    </tr>
+
 </table>
 
 ### 在线体验
@@ -251,7 +247,7 @@ pip install -U magic-pdf[full] --extra-index-url https://wheels.myhloli.com -i h
         "enable": true  // 公式识别功能默认是开启的，如果需要关闭请修改此处的值为"false"
     },
     "table-config": {
-        "model": "tablemaster",  // 使用structEqTable请修改为"struct_eqtable"
+        "model": "rapid_table",  // 默认使用"rapid_table",可以切换为"tablemaster"和"struct_eqtable"
         "enable": false, // 表格识别功能默认是关闭的，如果需要开启请修改此处的值为"true"
         "max_time": 400
     }
@@ -266,7 +262,7 @@ pip install -U magic-pdf[full] --extra-index-url https://wheels.myhloli.com -i h
 - [Windows10/11 + GPU](docs/README_Windows_CUDA_Acceleration_zh_CN.md)
 - 使用Docker快速部署
 > [!IMPORTANT]
-> Docker 需设备gpu显存大于等于16GB，默认开启所有加速功能
+> Docker 需设备gpu显存大于等于8GB，默认开启所有加速功能
 > 
 > 运行本docker前可以通过以下命令检测自己的设备是否支持在docker上使用CUDA加速
 > 
@@ -429,7 +425,9 @@ TODO
 # Acknowledgments
 
 - [PDF-Extract-Kit](https://github.com/opendatalab/PDF-Extract-Kit)
+- [DocLayout-YOLO](https://github.com/opendatalab/DocLayout-YOLO)
 - [StructEqTable](https://github.com/UniModal4Reasoning/StructEqTable-Deploy)
+- [RapidTable](https://github.com/RapidAI/RapidTable)
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)
 - [PyMuPDF](https://github.com/pymupdf/PyMuPDF)
 - [layoutreader](https://github.com/ppaanngggg/layoutreader)
