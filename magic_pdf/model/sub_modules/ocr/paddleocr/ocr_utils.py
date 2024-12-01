@@ -1,10 +1,54 @@
-import math
-
+import cv2
 import numpy as np
 from loguru import logger
-
+from io import BytesIO
+from PIL import Image
+import base64
 from magic_pdf.libs.boxbase import __is_overlaps_y_exceeds_threshold
 from magic_pdf.pre_proc.ocr_dict_merge import merge_spans_to_line
+
+from ppocr.utils.utility import check_and_read
+
+
+def img_decode(content: bytes):
+    np_arr = np.frombuffer(content, dtype=np.uint8)
+    return cv2.imdecode(np_arr, cv2.IMREAD_UNCHANGED)
+
+
+def check_img(img):
+    if isinstance(img, bytes):
+        img = img_decode(img)
+    if isinstance(img, str):
+        image_file = img
+        img, flag_gif, flag_pdf = check_and_read(image_file)
+        if not flag_gif and not flag_pdf:
+            with open(image_file, 'rb') as f:
+                img_str = f.read()
+                img = img_decode(img_str)
+            if img is None:
+                try:
+                    buf = BytesIO()
+                    image = BytesIO(img_str)
+                    im = Image.open(image)
+                    rgb = im.convert('RGB')
+                    rgb.save(buf, 'jpeg')
+                    buf.seek(0)
+                    image_bytes = buf.read()
+                    data_base64 = str(base64.b64encode(image_bytes),
+                                      encoding="utf-8")
+                    image_decode = base64.b64decode(data_base64)
+                    img_array = np.frombuffer(image_decode, np.uint8)
+                    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                except:
+                    logger.error("error in loading image:{}".format(image_file))
+                    return None
+        if img is None:
+            logger.error("error in loading image:{}".format(image_file))
+            return None
+    if isinstance(img, np.ndarray) and len(img.shape) == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+
+    return img
 
 
 def bbox_to_points(bbox):
@@ -214,6 +258,9 @@ def get_ocr_result_list(ocr_res, useful_list):
         if len(box_ocr_res) == 2:
             p1, p2, p3, p4 = box_ocr_res[0]
             text, score = box_ocr_res[1]
+            # logger.info(f"text: {text}, score: {score}")
+            if score < 0.6:  # 过滤低置信度的结果
+                continue
         else:
             p1, p2, p3, p4 = box_ocr_res
             text, score = "", 1
@@ -247,32 +294,6 @@ def get_ocr_result_list(ocr_res, useful_list):
         })
 
     return ocr_result_list
-
-
-def calculate_angle_degrees(poly):
-    # 定义对角线的顶点
-    diagonal1 = (poly[0], poly[2])
-    diagonal2 = (poly[1], poly[3])
-
-    # 计算对角线的斜率
-    def slope(p1, p2):
-        return (p2[1] - p1[1]) / (p2[0] - p1[0]) if p2[0] != p1[0] else float('inf')
-
-    slope1 = slope(diagonal1[0], diagonal1[1])
-    slope2 = slope(diagonal2[0], diagonal2[1])
-
-    # 计算对角线与x轴的夹角（以弧度为单位）
-    angle1_radians = math.atan(slope1)
-    angle2_radians = math.atan(slope2)
-
-    # 将弧度转换为角度
-    angle1_degrees = math.degrees(angle1_radians)
-    angle2_degrees = math.degrees(angle2_radians)
-
-    # 取两条对角线与x轴夹角的平均值
-    average_angle_degrees = abs((angle1_degrees + angle2_degrees) / 2)
-    # logger.info(f"average_angle_degrees: {average_angle_degrees}")
-    return average_angle_degrees
 
 
 def calculate_is_angle(poly):

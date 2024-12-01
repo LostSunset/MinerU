@@ -1,7 +1,10 @@
 import copy
 
+from loguru import logger
+
 from magic_pdf.config.constants import CROSS_PAGE, LINES_DELETED
 from magic_pdf.config.ocr_content_type import BlockType, ContentType
+from magic_pdf.libs.language import detect_lang
 
 LINE_STOP_FLAG = (
     '.',
@@ -125,6 +128,9 @@ def __is_list_or_index_block(block):
 
             # 添加所有文本，包括空行，保持与block['lines']长度一致
             lines_text_list.append(line_text)
+            block_text = ''.join(lines_text_list)
+            block_lang = detect_lang(block_text)
+            # logger.info(f"block_lang: {block_lang}")
 
             # 计算line左侧顶格数量是否大于2，是否顶格用abs(block['bbox_fs'][0] - line['bbox'][0]) < line_height/2 来判断
             if abs(block['bbox_fs'][0] - line['bbox'][0]) < line_height / 2:
@@ -136,13 +142,16 @@ def __is_list_or_index_block(block):
             if abs(block['bbox_fs'][2] - line['bbox'][2]) < line_height:
                 right_close_num += 1
             else:
-                # 右侧不顶格情况下是否有一段距离，拍脑袋用0.3block宽度做阈值
-                # block宽的阈值可以小些，block窄的阈值要大
-
-                if block_weight_radio >= 0.5:
+                # 类中文没有超长单词的情况，可以用统一的阈值
+                if block_lang in ['zh', 'ja', 'ko']:
                     closed_area = 0.26 * block_weight
                 else:
-                    closed_area = 0.36 * block_weight
+                    # 右侧不顶格情况下是否有一段距离，拍脑袋用0.3block宽度做阈值
+                    # block宽的阈值可以小些，block窄的阈值要大
+                    if block_weight_radio >= 0.5:
+                        closed_area = 0.26 * block_weight
+                    else:
+                        closed_area = 0.36 * block_weight
                 if block['bbox_fs'][2] - line['bbox'][2] > closed_area:
                     right_not_close_num += 1
 
@@ -271,13 +280,18 @@ def __merge_2_text_blocks(block1, block2):
                     first_span = first_line['spans'][0]
                     if len(first_span['content']) > 0:
                         span_start_with_num = first_span['content'][0].isdigit()
+                        span_start_with_big_char = first_span['content'][0].isupper()
                         if (
-                            abs(block2['bbox_fs'][2] - last_line['bbox'][2])
-                            < line_height
+                            # 上一个block的最后一个line的右边界和block的右边界差距不超过line_height
+                            abs(block2['bbox_fs'][2] - last_line['bbox'][2]) < line_height
+                            # 上一个block的最后一个span不是以特定符号结尾
                             and not last_span['content'].endswith(LINE_STOP_FLAG)
                             # 两个block宽度差距超过2倍也不合并
                             and abs(block1_weight - block2_weight) < min_block_weight
+                            # 下一个block的第一个字符是数字
                             and not span_start_with_num
+                            # 下一个block的第一个字符是大写字母
+                            and not span_start_with_big_char
                         ):
                             if block1['page_num'] != block2['page_num']:
                                 for line in block1['lines']:

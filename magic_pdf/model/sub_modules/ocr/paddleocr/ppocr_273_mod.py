@@ -1,15 +1,17 @@
 import copy
 import time
-
 import cv2
 import numpy as np
-from paddleocr import PaddleOCR
-from paddleocr.paddleocr import check_img, logger
-from paddleocr.ppocr.utils.utility import alpha_to_color, binarize_img
-from paddleocr.tools.infer.predict_system import sorted_boxes
-from paddleocr.tools.infer.utility import get_rotate_crop_image, get_minarea_rect_crop
 
-from magic_pdf.model.sub_modules.ocr.paddleocr.ocr_utils import update_det_boxes, merge_det_boxes
+from paddleocr import PaddleOCR
+from ppocr.utils.logging import get_logger
+from ppocr.utils.utility import alpha_to_color, binarize_img
+from tools.infer.predict_system import sorted_boxes
+from tools.infer.utility import get_rotate_crop_image, get_minarea_rect_crop
+
+from magic_pdf.model.sub_modules.ocr.paddleocr.ocr_utils import update_det_boxes, merge_det_boxes, check_img
+
+logger = get_logger()
 
 
 class ModifiedPaddleOCR(PaddleOCR):
@@ -63,7 +65,7 @@ class ModifiedPaddleOCR(PaddleOCR):
 
         if det and rec:
             ocr_res = []
-            for idx, img in enumerate(imgs):
+            for img in imgs:
                 img = preprocess_image(img)
                 dt_boxes, rec_res, _ = self.__call__(img, cls, mfd_res=mfd_res)
                 if not dt_boxes and not rec_res:
@@ -75,7 +77,7 @@ class ModifiedPaddleOCR(PaddleOCR):
             return ocr_res
         elif det and not rec:
             ocr_res = []
-            for idx, img in enumerate(imgs):
+            for img in imgs:
                 img = preprocess_image(img)
                 dt_boxes, elapse = self.text_detector(img)
                 if dt_boxes is None:
@@ -96,7 +98,7 @@ class ModifiedPaddleOCR(PaddleOCR):
         else:
             ocr_res = []
             cls_res = []
-            for idx, img in enumerate(imgs):
+            for img in imgs:
                 if not isinstance(img, list):
                     img = preprocess_image(img)
                     img = [img]
